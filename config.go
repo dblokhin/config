@@ -1,11 +1,12 @@
 package config
 
 import (
-    "encoding/json"
-    "strings"
-    "strconv"
-    "os"
+	"encoding/json"
+	"strings"
+	"strconv"
+	"os"
 	"io"
+	"context"
 )
 
 type Config map[string]interface{}
@@ -13,50 +14,50 @@ type Config map[string]interface{}
 // GetString return string config value
 func (conf Config) GetString(path string) string {
 
-    result := conf.Get(path)
-    if result == nil {
-        return ""
-    }
+	result := conf.Get(path)
+	if result == nil {
+		return ""
+	}
 
-    // Если строка, то это результат
-    switch val := result.(type) {
-    case string: return val
+	// Если строка, то это результат
+	switch val := result.(type) {
+	case string: return val
 
-    default:
-        return ""
-    }
+	default:
+		return ""
+	}
 }
 
 // GetArray return array config value
 func (conf Config) GetArray(path string) []interface{} {
 
-    result := conf.Get(path)
-    if result == nil {
-        return []interface{}{}
-    }
+	result := conf.Get(path)
+	if result == nil {
+		return []interface{}{}
+	}
 
-    switch val := result.(type) {
-    case []interface{}: return val
+	switch val := result.(type) {
+	case []interface{}: return val
 
-    default:
-        return []interface{}{}
-    }
+	default:
+		return []interface{}{}
+	}
 }
 
 // GetBool return bool config value
 func (conf Config) GetBool(path string) bool {
 
-    result := conf.Get(path)
-    if result == nil {
-        return false
-    }
+	result := conf.Get(path)
+	if result == nil {
+		return false
+	}
 
-    switch val := result.(type) {
-    case bool: return val
+	switch val := result.(type) {
+	case bool: return val
 
-    default:
-        return false
-    }
+	default:
+		return false
+	}
 }
 
 // GetInt return int64 config value. It may be in hex & oct variants
@@ -85,57 +86,57 @@ func (conf Config) GetInt(path string) int64 {
 // GetFloat64 return float64 config value
 func (conf Config) GetFloat64(path string) float64 {
 
-    result := conf.Get(path)
-    if result == nil {
-        return 0
-    }
+	result := conf.Get(path)
+	if result == nil {
+		return 0
+	}
 
-    switch val := result.(type) {
-    case float64: return val
-    case int: return float64(val)
-    case int64: return float64(val)
-    case json.Number:
-        if res, err := strconv.ParseFloat(string(val), 64); err != nil {
-            return 0
-        } else {
-            return res
-        }
+	switch val := result.(type) {
+	case float64: return val
+	case int: return float64(val)
+	case int64: return float64(val)
+	case json.Number:
+		if res, err := strconv.ParseFloat(string(val), 64); err != nil {
+			return 0
+		} else {
+			return res
+		}
 
-    default:
-        return 0
-    }
+	default:
+		return 0
+	}
 }
 
 // Get return config value by dotted path in json tree. Path should be like this "root.option.item"
 func (conf Config) Get(path string) interface{} {
-    items := strings.Split(path, ".")
+	items := strings.Split(path, ".")
 
-    idx := 0
-    value := map[string]interface{}(conf)
+	idx := 0
+	value := map[string]interface{}(conf)
 
-    // Перебор до предпоследнего элемента
-    for idx < len(items) - 1 {
-        tmp, ok := value[items[idx]]
-        if !ok {
-            return ""
-        }
+	// Перебор до предпоследнего элемента
+	for idx < len(items) - 1 {
+		tmp, ok := value[items[idx]]
+		if !ok {
+			return ""
+		}
 
-        value = tmp.(map[string]interface{})
-        idx++
-    }
+		value = tmp.(map[string]interface{})
+		idx++
+	}
 
-    // Последний элемент
-    return value[items[idx]]
+	// Последний элемент
+	return value[items[idx]]
 }
 
 // New create config from file
 func New(filename string) Config {
-    file, err := os.Open(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
 
-    return NewFromIO(file)
+	return NewFromIO(file)
 }
 
 // NewFromIO create config from io.Reader
@@ -144,11 +145,24 @@ func NewFromIO(input io.Reader) Config {
 	decoder.UseNumber()
 
 	res := make(Config)
-	decoder.Decode(&res)
-
 	if err := decoder.Decode(&res); err != nil {
 		panic(err)
 	}
 
 	return res
+}
+
+type key int
+
+const keyConfig key = iota
+
+// NewContext create new context with config
+func NewContext(ctx context.Context, filename string) context.Context {
+	return context.WithValue(ctx, keyConfig, New(filename))
+}
+
+// FromContext return config from context
+func FromContext(ctx context.Context) (Config, bool) {
+	value, ok := ctx.Value(keyConfig).(Config)
+	return value, ok
 }
