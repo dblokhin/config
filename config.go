@@ -10,14 +10,15 @@ import (
 	"sync"
 )
 
+// Config is struct where stored configuration loaded from file or io stream
 type Config struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	// config data
 	data map[string]interface{}
 }
 
-// GetString return string config value
+// GetString returns string config value
 func (cnf *Config) GetString(path string) string {
 
 	result := cnf.Get(path)
@@ -27,14 +28,15 @@ func (cnf *Config) GetString(path string) string {
 
 	// Если строка, то это результат
 	switch val := result.(type) {
-	case string: return val
+	case string:
+		return val
 
 	default:
 		return ""
 	}
 }
 
-// GetArray return array config value
+// GetArray returns array config value
 func (cnf *Config) GetArray(path string) []interface{} {
 
 	result := cnf.Get(path)
@@ -43,14 +45,15 @@ func (cnf *Config) GetArray(path string) []interface{} {
 	}
 
 	switch val := result.(type) {
-	case []interface{}: return val
+	case []interface{}:
+		return val
 
 	default:
 		return []interface{}{}
 	}
 }
 
-// GetBool return bool config value
+// GetBool returns bool config value
 func (cnf *Config) GetBool(path string) bool {
 
 	result := cnf.Get(path)
@@ -59,14 +62,15 @@ func (cnf *Config) GetBool(path string) bool {
 	}
 
 	switch val := result.(type) {
-	case bool: return val
+	case bool:
+		return val
 
 	default:
 		return false
 	}
 }
 
-// GetInt return int64 config value. It may be in hex & oct variants
+// GetInt returns int64 config value. It may be in hex & oct variants
 func (cnf *Config) GetInt(path string) int64 {
 
 	result := cnf.Get(path)
@@ -75,8 +79,10 @@ func (cnf *Config) GetInt(path string) int64 {
 	}
 
 	switch val := result.(type) {
-	case int: return int64(val)
-	case int64: return val
+	case int:
+		return int64(val)
+	case int64:
+		return val
 	case json.Number:
 		if res, err := strconv.ParseInt(string(val), 0, 64); err != nil {
 			return 0
@@ -89,7 +95,7 @@ func (cnf *Config) GetInt(path string) int64 {
 	}
 }
 
-// GetFloat64 return float64 config value
+// GetFloat64 returns float64 config value
 func (cnf *Config) GetFloat64(path string) float64 {
 
 	result := cnf.Get(path)
@@ -98,9 +104,12 @@ func (cnf *Config) GetFloat64(path string) float64 {
 	}
 
 	switch val := result.(type) {
-	case float64: return val
-	case int: return float64(val)
-	case int64: return float64(val)
+	case float64:
+		return val
+	case int:
+		return float64(val)
+	case int64:
+		return float64(val)
 	case json.Number:
 		if res, err := strconv.ParseFloat(string(val), 64); err != nil {
 			return 0
@@ -118,14 +127,14 @@ func (cnf *Config) Get(path string) interface{} {
 	items := strings.Split(path, ".")
 
 	// lock concurrent access
-	cnf.Lock()
-	defer cnf.Unlock()
+	cnf.mu.Lock()
+	defer cnf.mu.Unlock()
 
 	idx := 0
 	value := map[string]interface{}(cnf.data)
 
 	// Перебор до предпоследнего элемента
-	for idx < len(items) - 1 {
+	for idx < len(items)-1 {
 		tmp, ok := value[items[idx]]
 		if !ok {
 			return ""
@@ -139,34 +148,34 @@ func (cnf *Config) Get(path string) interface{} {
 	return value[items[idx]]
 }
 
-// New create config from file
-func New(filename string) (*Config, error) {
-	file, err := os.Open(filename)
+// New creates config from file
+func New(file string) (*Config, error) {
+	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
-	return NewFromIO(file), nil
+	return NewFromIO(f)
 }
 
-// NewFromIO create config from io.Reader
-func NewFromIO(input io.Reader) *Config {
+// NewFromIO creates config from io.Reader
+func NewFromIO(input io.Reader) (*Config, error) {
 	decoder := json.NewDecoder(input)
 	decoder.UseNumber()
 
 	res := new(Config)
 	if err := decoder.Decode(res); err != nil {
-		panic(err)
+		return nil, err
+	} else {
+		return res, nil
 	}
-
-	return res
 }
 
 type key int
-
 const keyConfig key = iota
 
-// NewContext create new context with config
+// NewContext creates new context with config
 func NewContext(ctx context.Context, filename string) (context.Context, error) {
 	if conf, err := New(filename); err != nil {
 		return ctx, err
@@ -175,7 +184,7 @@ func NewContext(ctx context.Context, filename string) (context.Context, error) {
 	}
 }
 
-// FromContext return config from context
+// FromContext returns config from context
 func FromContext(ctx context.Context) (*Config, bool) {
 	value, ok := ctx.Value(keyConfig).(*Config)
 	return value, ok
