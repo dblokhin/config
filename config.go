@@ -7,14 +7,20 @@ import (
 	"os"
 	"io"
 	"context"
+	"sync"
 )
 
-type Config map[string]interface{}
+type Config struct {
+	sync.Mutex
+
+	// config data
+	data map[string]interface{}
+}
 
 // GetString return string config value
-func (conf Config) GetString(path string) string {
+func (cnf *Config) GetString(path string) string {
 
-	result := conf.Get(path)
+	result := cnf.Get(path)
 	if result == nil {
 		return ""
 	}
@@ -29,9 +35,9 @@ func (conf Config) GetString(path string) string {
 }
 
 // GetArray return array config value
-func (conf Config) GetArray(path string) []interface{} {
+func (cnf *Config) GetArray(path string) []interface{} {
 
-	result := conf.Get(path)
+	result := cnf.Get(path)
 	if result == nil {
 		return []interface{}{}
 	}
@@ -45,9 +51,9 @@ func (conf Config) GetArray(path string) []interface{} {
 }
 
 // GetBool return bool config value
-func (conf Config) GetBool(path string) bool {
+func (cnf *Config) GetBool(path string) bool {
 
-	result := conf.Get(path)
+	result := cnf.Get(path)
 	if result == nil {
 		return false
 	}
@@ -61,9 +67,9 @@ func (conf Config) GetBool(path string) bool {
 }
 
 // GetInt return int64 config value. It may be in hex & oct variants
-func (conf Config) GetInt(path string) int64 {
+func (cnf *Config) GetInt(path string) int64 {
 
-	result := conf.Get(path)
+	result := cnf.Get(path)
 	if result == nil {
 		return 0
 	}
@@ -84,9 +90,9 @@ func (conf Config) GetInt(path string) int64 {
 }
 
 // GetFloat64 return float64 config value
-func (conf Config) GetFloat64(path string) float64 {
+func (cnf *Config) GetFloat64(path string) float64 {
 
-	result := conf.Get(path)
+	result := cnf.Get(path)
 	if result == nil {
 		return 0
 	}
@@ -107,12 +113,16 @@ func (conf Config) GetFloat64(path string) float64 {
 	}
 }
 
-// Get return config value by dotted path in json tree. Path should be like this "root.option.item"
-func (conf Config) Get(path string) interface{} {
+// Get returns config value by dotted json path. Path should be like this "root.option.item"
+func (cnf *Config) Get(path string) interface{} {
 	items := strings.Split(path, ".")
 
+	// lock concurrent access
+	cnf.Lock()
+	defer cnf.Unlock()
+
 	idx := 0
-	value := map[string]interface{}(conf)
+	value := map[string]interface{}(cnf.data)
 
 	// Перебор до предпоследнего элемента
 	for idx < len(items) - 1 {
