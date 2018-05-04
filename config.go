@@ -130,22 +130,22 @@ func (conf Config) Get(path string) interface{} {
 }
 
 // New create config from file
-func New(filename string) Config {
+func New(filename string) (*Config, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return NewFromIO(file)
+	return NewFromIO(file), nil
 }
 
 // NewFromIO create config from io.Reader
-func NewFromIO(input io.Reader) Config {
+func NewFromIO(input io.Reader) *Config {
 	decoder := json.NewDecoder(input)
 	decoder.UseNumber()
 
-	res := make(Config)
-	if err := decoder.Decode(&res); err != nil {
+	res := new(Config)
+	if err := decoder.Decode(res); err != nil {
 		panic(err)
 	}
 
@@ -157,12 +157,16 @@ type key int
 const keyConfig key = iota
 
 // NewContext create new context with config
-func NewContext(ctx context.Context, filename string) context.Context {
-	return context.WithValue(ctx, keyConfig, New(filename))
+func NewContext(ctx context.Context, filename string) (context.Context, error) {
+	if conf, err := New(filename); err != nil {
+		return ctx, err
+	} else {
+		return context.WithValue(ctx, keyConfig, conf), nil
+	}
 }
 
 // FromContext return config from context
-func FromContext(ctx context.Context) (Config, bool) {
-	value, ok := ctx.Value(keyConfig).(Config)
+func FromContext(ctx context.Context) (*Config, bool) {
+	value, ok := ctx.Value(keyConfig).(*Config)
 	return value, ok
 }
