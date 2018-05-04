@@ -164,8 +164,11 @@ func NewFromIO(input io.Reader) (*Config, error) {
 	decoder := json.NewDecoder(input)
 	decoder.UseNumber()
 
-	res := new(Config)
-	if err := decoder.Decode(res); err != nil {
+	res := &Config{
+		mu: sync.Mutex{},
+		data: make(map[string]interface{}),
+	}
+	if err := decoder.Decode(&res.data); err != nil {
 		return nil, err
 	} else {
 		return res, nil
