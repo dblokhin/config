@@ -8,10 +8,13 @@ import (
 	"io"
 	"context"
 	"sync"
+	"errors"
 )
 
-// Config is struct where stored configuration loaded from file or io stream
-type Config struct {
+var errNoConfigData = errors.New("config: no config data in context")
+
+// ConfigData is struct where stored configuration loaded from file or io stream
+type ConfigData struct {
 	mu sync.Mutex
 
 	// config data
@@ -19,7 +22,7 @@ type Config struct {
 }
 
 // GetString returns string config value
-func (cnf *Config) GetString(path string) string {
+func (cnf *ConfigData) GetString(path string) string {
 
 	result := cnf.Get(path)
 	if result == nil {
@@ -37,7 +40,7 @@ func (cnf *Config) GetString(path string) string {
 }
 
 // GetArray returns array config value
-func (cnf *Config) GetArray(path string) []interface{} {
+func (cnf *ConfigData) GetArray(path string) []interface{} {
 
 	result := cnf.Get(path)
 	if result == nil {
@@ -54,7 +57,7 @@ func (cnf *Config) GetArray(path string) []interface{} {
 }
 
 // GetBool returns bool config value
-func (cnf *Config) GetBool(path string) bool {
+func (cnf *ConfigData) GetBool(path string) bool {
 
 	result := cnf.Get(path)
 	if result == nil {
@@ -71,7 +74,7 @@ func (cnf *Config) GetBool(path string) bool {
 }
 
 // GetInt returns int64 config value. It may be in hex & oct variants
-func (cnf *Config) GetInt(path string) int64 {
+func (cnf *ConfigData) GetInt(path string) int64 {
 
 	result := cnf.Get(path)
 	if result == nil {
@@ -96,7 +99,7 @@ func (cnf *Config) GetInt(path string) int64 {
 }
 
 // GetFloat64 returns float64 config value
-func (cnf *Config) GetFloat64(path string) float64 {
+func (cnf *ConfigData) GetFloat64(path string) float64 {
 
 	result := cnf.Get(path)
 	if result == nil {
@@ -123,7 +126,7 @@ func (cnf *Config) GetFloat64(path string) float64 {
 }
 
 // Get returns config value by dotted json path. Path should be like this "root.option.item"
-func (cnf *Config) Get(path string) interface{} {
+func (cnf *ConfigData) Get(path string) interface{} {
 	items := strings.Split(path, ".")
 
 	// lock concurrent access
@@ -149,46 +152,47 @@ func (cnf *Config) Get(path string) interface{} {
 }
 
 // New creates config from file
-func New(file string) (*Config, error) {
+func New(file string) *ConfigData {
 	f, err := os.Open(file)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	defer f.Close()
 
-	return NewFromIO(f)
+	return NewFromReader(f)
 }
 
-// NewFromIO creates config from io.Reader
-func NewFromIO(input io.Reader) (*Config, error) {
+// NewFromReader creates config from io.Reader
+func NewFromReader(input io.Reader) *ConfigData {
 	decoder := json.NewDecoder(input)
 	decoder.UseNumber()
 
-	res := &Config{
-		mu: sync.Mutex{},
-		data: make(map[string]interface{}),
+	data := make(map[string]interface{})
+	if err := decoder.Decode(&data); err != nil {
+		panic(err)
 	}
-	if err := decoder.Decode(&res.data); err != nil {
-		return nil, err
-	} else {
-		return res, nil
+
+	return &ConfigData{
+		mu:   sync.Mutex{},
+		data: data,
 	}
 }
 
 type key int
+
 const keyConfig key = iota
 
 // NewContext creates new context with config
-func NewContext(ctx context.Context, filename string) (context.Context, error) {
-	if conf, err := New(filename); err != nil {
-		return ctx, err
-	} else {
-		return context.WithValue(ctx, keyConfig, conf), nil
-	}
+func NewContext(ctx context.Context, filename string) context.Context {
+	return context.WithValue(ctx, keyConfig, New(filename))
 }
 
-// FromContext returns config from context
-func FromContext(ctx context.Context) (*Config, bool) {
-	value, ok := ctx.Value(keyConfig).(*Config)
-	return value, ok
+// Config returns config from context
+func Config(ctx context.Context) *ConfigData {
+	value, ok := ctx.Value(keyConfig).(*ConfigData)
+	if !ok {
+		panic(errNoConfigData)
+	}
+
+	return value
 }
