@@ -1,3 +1,5 @@
+[![License MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://img.shields.io/badge/License-MIT-brightgreen.svg)
+
 # Simple configuration in Golang (JSON)
 Each config key value is requested by a key path. Path is dotted JSON path. See example and it will be clear:
 
